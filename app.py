@@ -287,7 +287,7 @@ async def button_help(message: Message):
 @dp.message(F.text == "🎟 Промокод")
 async def button_promo(message: Message):
     await message.answer(
-        "🎟 Отправь промокод в ответном сообщении.\nНапример: `FRIEND2024`",
+        "🎟 Отправь промокод в ответном сообщении.\nНапример: `2026`",
         parse_mode="Markdown"
     )
 
