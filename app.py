@@ -462,26 +462,66 @@ async def reject_round(callback: CallbackQuery):
 # ==================== АДМИН-КОМАНДЫ ====================
 @dp.message(F.text == "📋 На модерацию")
 async def admin_moderation_list(message: Message):
+    print(f"🔍 Кнопка 'На модерацию' нажата пользователем {message.from_user.id}")
     if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У вас нет доступа к админ-панели")
         return
+    
     if not moderation_queue:
-        await message.answer("Нет кружков на модерации")
+        await message.answer("✅ Нет кружков на модерации")
     else:
+        await message.answer(f"📋 На модерации: {len(moderation_queue)} кружков")
         for idx, item in enumerate(moderation_queue[:5]):
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_{idx}"),
                  InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{idx}")]
             ])
-            await message.answer_video_note(item["file_id"], caption=f"От: {item['from_user']}", reply_markup=kb)
+            try:
+                await message.answer_video_note(
+                    item["file_id"], 
+                    caption=f"От пользователя: {item['from_user']}", 
+                    reply_markup=kb
+                )
+            except Exception as e:
+                await message.answer(f"❌ Ошибка при отправке кружка: {e}")
+
+@dp.message(F.text == "✅ Одобрить все")
+async def admin_approve_all(message: Message):
+    print(f"🔍 Кнопка 'Одобрить все' нажата пользователем {message.from_user.id}")
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У вас нет доступа к админ-панели")
+        return
+    
+    if not moderation_queue:
+        await message.answer("✅ Нет кружков на модерации")
+        return
+    
+    count = len(moderation_queue)
+    for item in moderation_queue:
+        pending_rounds.append({"file_id": item["file_id"], "from_user": item["from_user"]})
+        try:
+            await bot.send_message(item["from_user"], "✅ Ваш кружок прошёл модерацию!")
+        except:
+            pass
+    
+    moderation_queue.clear()
+    await save_data()
+    await message.answer(f"✅ Одобрено {count} кружков!")
 
 @dp.message(F.text == "👤 Обычное меню")
 async def admin_normal_menu(message: Message):
-    if message.from_user.id in ADMIN_IDS:
-        await message.answer("Обычное меню", reply_markup=main_keyboard)
+    print(f"🔍 Кнопка 'Обычное меню' нажата пользователем {message.from_user.id}")
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У вас нет доступа к админ-панели")
+        return
+    
+    await message.answer("👤 Переключено на обычное меню", reply_markup=main_keyboard)
 
 @dp.message(F.text == "📊 Стата бота")
 async def admin_bot_stats(message: Message):
+    print(f"🔍 Кнопка 'Стата бота' нажата пользователем {message.from_user.id}")
     if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У вас нет доступа к админ-панели")
         return
 
     total_users = len(user_stats)
@@ -502,30 +542,40 @@ async def admin_bot_stats(message: Message):
 
 @dp.message(F.text == "👥 Топ рефереров")
 async def admin_top_referrers(message: Message):
+    print(f"🔍 Кнопка 'Топ рефереров' нажата пользователем {message.from_user.id}")
     if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У вас нет доступа к админ-панели")
         return
 
     sorted_users = sorted(user_stats.items(), key=lambda x: x[1]["referral_count"], reverse=True)[:10]
 
     text = "👥 *Топ-10 рефереров:*\n\n"
+    has_refs = False
     for i, (user_id, stats) in enumerate(sorted_users, 1):
         if stats["referral_count"] > 0:
             text += f"{i}. `{user_id}` — {stats['referral_count']} приглашено\n"
+            has_refs = True
 
-    if text == "👥 *Топ-10 рефереров:*\n\n":
+    if not has_refs:
         text += "Пока никто никого не пригласил 🥲"
 
     await message.answer(text, parse_mode="Markdown")
 
 @dp.message(F.text == "👤 Все пользователи")
 async def admin_all_users(message: Message):
+    print(f"🔍 Кнопка 'Все пользователи' нажата пользователем {message.from_user.id}")
     if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У вас нет доступа к админ-панели")
+        return
+
+    if not user_stats:
+        await message.answer("👥 Пока нет пользователей")
         return
 
     text = f"👥 *Всего пользователей: {len(user_stats)}*\n\n"
     for user_id, stats in list(user_stats.items())[:20]:
         status = "🌟" if stats["unlimited"] else "👤"
-        text += f"{status} `{user_id}`: отправлено {stats.get('total_sent', 0)}\n"
+        text += f"{status} `{user_id}`: {stats.get('total_sent', 0)} отправлено\n"
 
     if len(user_stats) > 20:
         text += f"\n... и ещё {len(user_stats) - 20}"
